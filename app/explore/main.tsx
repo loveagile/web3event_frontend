@@ -22,19 +22,53 @@ import {
 import { CaptionsIcon, MapPinIcon } from "lucide-react";
 import Link from "next/link";
 import cls from "classnames";
+import { truncateSync } from "fs";
 
 type Props = {
   web3eventList: Web3event[];
 };
 
+interface ICountInfo {
+  event_count: number;
+  city_count: number;
+}
+
+interface IAsterisk {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  title: string;
+  image: string;
+  link: string;
+}
+
+interface IPopCity {
+  id: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  count: number;
+  city_id: string;
+  name: string;
+  timezone: string;
+  image: string;
+  flag_id: number;
+  flag_url: string;
+}
+
 export const MainPage: React.FC = () => {
   const [isLoading, setLoading] = useState(true);
   const [web3event, setWeb3event] = useState<Web3event[]>([]);
   const [pages, setPages] = useState<number>(0);
-  const [asteriskData, setAsteriskData] = useState();
-  const [asteriskImages, setAsteriskImages] = useState([]);
-  const [countInfo, setCountInfo] = useState<any>({});
-  const [popCities, setPopCities] = useState([]);
+
+  const [countInfo, setCountInfo] = useState<ICountInfo>({
+    event_count: 0,
+    city_count: 0,
+  });
+  const [asterisks, setAsterisks] = useState<IAsterisk[]>([]);
+  const [popCities, setPopCities] = useState<IPopCity[]>([]);
+
   const [status, setStatus] = useState<number>(1);
   const [queryType, setQueryType] = useState<number>(0);
   const [fetchFull, setFetchFull] = useState(true);
@@ -79,44 +113,21 @@ export const MainPage: React.FC = () => {
     }
   };
 
+  // Start "Fetch Data"
+  const fetchCountInfo = async () => {
+    const countInfoData = await axios.get(`/api/explore/countInfo`);
+    if (countInfoData.status == 200) setCountInfo(countInfoData.data.data);
+  };
+
   const fetchAsteriskData = async () => {
-    try {
-      const result = await axios.post(`/api/explore/asterisk`);
-      const data = result.data.data;
-      const ImageData = data.map((event: any) => ({
-        image: event.image,
-        title: event.title,
-      }));
-      setAsteriskImages(ImageData);
-    } catch (error) {
-      console.error("Error fetching asterisk data", error);
-      throw error;
-    }
+    const asteriskData = await axios.post(`/api/explore/asterisk`);
+    if (asteriskData.status == 200) setAsterisks(asteriskData.data.data);
   };
 
   const fetchPopCitiesData = async () => {
-    try {
-      const result: any = await axios.get(`/api/explore/asterisk`);
-      const data = result.data.data;
-      const ImageData = data.map((city: any) => ({
-        image: city.image,
-        name: city.name,
-        id: city.id,
-      }));
-      setPopCities(ImageData);
-    } catch (error) {}
-  };
-
-  const fetchCountInfo = async () => {
-    try {
-      const result = await axios.get(`/api/explore/countInfo`);
-      const data = result.data.data;
-      setCountInfo(data);
-    } catch (error) {
-      console.error("Error fetching countInfo", error);
-      throw error;
-    }
-  };
+    const citiesData = await axios.get(`/api/explore/cities`);
+    if (citiesData.status == 200) setPopCities(citiesData.data.data);
+  }; // End "Fetch Data"
 
   const fetchMoreData = async () => {
     const web3eventList: Web3event[] = await fetchWeb3event(
@@ -181,7 +192,7 @@ export const MainPage: React.FC = () => {
               <p className="mt-4 text-zinc-400">
                 You can explore web3events here with CommuneAI.
               </p>
-              <div className="flex justify-center items-center gap-4 h-[200px]">
+              <div className="flex justify-center mt-12">
                 <div className="flex items-center gap-[10px]">
                   <CaptionsIcon size={32} color="#a063ff" strokeWidth={3} />
                   <div className="text-4xl text-zinc-200 font-bold font-sans">
@@ -227,16 +238,14 @@ export const MainPage: React.FC = () => {
                 modules={[EffectCoverflow, Pagination, Autoplay]}
                 className="asteriskSwiper"
               >
-                {asteriskImages.map((event: any, key) => (
+                {asterisks.map((event: IAsterisk, key) => (
                   <SwiperSlide key={key}>
-                    <div className="rounded-lg bg-zinc-800 border border-zinc-700">
-                      <div className="p-4 rounded-lg overflow-hidden">
-                        <img src={event.image} />
-                      </div>
-                      <div className="px-4 pb-4">
-                        <h1 className=" text-slate-200 text-xl">
+                    <div className="rounded-lg bg-zinc-800 border border-zinc-700 h-full">
+                      <div className="p-2 rounded-lg h-full relative">
+                        <img className="h-full object-fit" src={event.image} />
+                        {/* <h1 className="w-full text-center text-slate-200 text-lg absolute bottom-0 left-1/2 transform translate-x-[-50%]">
                           {event.title}
-                        </h1>
+                        </h1> */}
                       </div>
                     </div>
                   </SwiperSlide>
@@ -244,7 +253,7 @@ export const MainPage: React.FC = () => {
               </Swiper>
             </div>
           </div>
-          <div className="w-full">
+          <div className="w-full mt-8">
             <Swiper
               slidesPerView="auto"
               spaceBetween={15}
@@ -262,10 +271,12 @@ export const MainPage: React.FC = () => {
                     href={`/city/events/${city.id}`}
                     className=" w-full rounded-lg overflow-hidden relative hover:cursor-pointer"
                   >
-                    <img src={city.image} />
-                    <h2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-zinc-300">
-                      {city.name}
-                    </h2>
+                    <div className="h-full">
+                      <img src={city.image} />
+                      <h2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-zinc-300">
+                        {city.name}
+                      </h2>
+                    </div>
                   </Link>
                 </SwiperSlide>
               ))}
